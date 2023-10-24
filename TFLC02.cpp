@@ -19,10 +19,73 @@ void TFLC02::reset() {
 void TFLC02::get_distance() {
   transmit(CMD_MEASURING_DISTANCE);
 
-  auto distance = (response.at(4) << 8 | response.at(5));
+  uint16_t distance = (response.at(4) << 8 | response.at(5));
 
-  std::cout << "Distance: " << +distance << " mm" << std::endl;
+  std::cout << "Distance: " << +distance << " mm (" << +response.at(6) <<")" << std::endl;
 }
+
+void TFLC02::crosstalk_correction() {
+  transmit(CMD_CROSSTALK_CORRECTION);
+
+  std::cout << "Error code: " << +response.at(4) << "; "
+            << "xtalkLsb: " << response.at(5) << "; "
+            << "xtalkMsb: " << response.at(6)
+            << std::endl;
+}
+
+void TFLC02::offset_correction() {
+  transmit(CMD_OFFSET_CORRECTION);
+
+  std::cout << "Error code: " << +response.at(4) << "; "
+            << "Offset_short1: " << response.at(5) << "; "
+            << "Offset_short2: " << response.at(6) << "; "
+            << "Offset_long1: " << response.at(7) << "; "
+            << "Offset_long2: " << response.at(8) << "; "
+            << std::endl;
+}
+
+void TFLC02::get_factory_defaults() {
+  transmit(CMD_FACTORY_SETTINGS);
+
+  std::cout << "Offset_short1: " << response.at(4) << "; "
+            << "Offset_short2: " << response.at(5) << "; "
+            << "Offset_long1: " << response.at(6) << "; "
+            << "Offset_long2: " << response.at(7) << "; "
+            << "xtalkLsb: " << response.at(8) << "; "
+            << "xtalkMsb: " << response.at(9)
+            << std::endl;
+}
+
+void TFLC02::get_product_information() {
+  transmit(CMD_PRODUCT_DETAILS);
+
+  std::cout << "Sensor_ic: ";
+  switch (response.at(4)) {
+    case 0x02:
+      std::cout << "gp2ap02vt";
+      break;
+    case 0x03:
+      std::cout << "gp2ap03vt";
+      break;
+    default:
+      break;
+  }
+  std::cout << "; Port: ";
+  switch (response.at(5)) {
+    case 0x41:
+      std::cout << "UART/I2C";
+      break;
+    case 0x49:
+      std::cout << "I2C";
+      break;
+    case 0x55:
+      std::cout << "UART";
+    default:
+      break;
+  }
+  std::cout << "; Firmware: " << +response.at(6) << std::endl;
+}
+
 
 void TFLC02::transmit(command_e command) {
   std::vector<uint8_t> tx_data {PACKET_HEADER_1, PACKET_HEADER_2};

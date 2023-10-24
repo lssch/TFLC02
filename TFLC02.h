@@ -17,6 +17,10 @@ public:
   TFLC02(UART_HandleTypeDef *huart_);
   void reset();
   void get_distance();
+  void crosstalk_correction();
+  void offset_correction();
+  void get_factory_defaults();
+  void get_product_information();
 private:
   typedef enum _command_e {
     CMD_MEASURING_DISTANCE = 0x81,
@@ -26,6 +30,17 @@ private:
     CMD_FACTORY_SETTINGS = 0x85,
     CMD_PRODUCT_DETAILS = 0x86
   } command_e;
+
+  typedef enum _error_code_e {
+    ERROR_VALID_DATA = 0x00,
+    ERROR_VCSEL_SHORT = 0x01,
+    ERROR_LOW_SIGNAL = 0x02,
+    ERROR_LOW_SN = 0x04,
+    ERROR_TOO_MUCH_AMB = 0x08,
+    ERROR_WAF = 0x10,
+    ERROR_CAL_ERROR = 0x20,
+    ERROR_CROSSTALK_ERROR = 0x80,
+  } error_code_e;
 
   UART_HandleTypeDef *huart;
   std::vector<uint8_t> response;
