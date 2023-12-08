@@ -6,26 +6,30 @@
 #include <iostream>
 #include "TFLC02.h"
 
-TFLC02::TFLC02(UART_HandleTypeDef *huart_):
+TFLC02::TFLC02::TFLC02(UART_HandleTypeDef *huart_):
   huart(huart_) {
 }
 
-void TFLC02::reset() {
-  transmit(CMD_RESET);
-
-  HAL_Delay(1000);
+void TFLC02::TFLC02::init() {
+  reset();
 }
 
-void TFLC02::get_distance() {
-  transmit(CMD_MEASURING_DISTANCE);
+void TFLC02::TFLC02::reset() {
+  transmit(Command::RESET);
 
-  uint16_t distance = (response.at(4) << 8 | response.at(5));
-
-  std::cout << "Distance: " << +distance << " mm (" << +response.at(6) <<")" << std::endl;
+  HAL_Delay(100);
 }
 
-void TFLC02::crosstalk_correction() {
-  transmit(CMD_CROSSTALK_CORRECTION);
+void TFLC02::TFLC02::get_distance(Sensor::TofSpot* sensor) {
+  transmit(Command::MEASURING_DISTANCE);
+
+  sensor->distance = (response.at(4) << 8 | response.at(5));
+
+  //std::cout << "Distance: " << +(response.at(4) << 8 | response.at(5)) << " mm (" << +response.at(6) <<")" << std::endl;
+}
+
+void TFLC02::TFLC02::crosstalk_correction() {
+  transmit(Command::CROSSTALK_CORRECTION);
 
   std::cout << "Error code: " << +response.at(4) << "; "
             << "xtalkLsb: " << response.at(5) << "; "
@@ -33,8 +37,8 @@ void TFLC02::crosstalk_correction() {
             << std::endl;
 }
 
-void TFLC02::offset_correction() {
-  transmit(CMD_OFFSET_CORRECTION);
+void TFLC02::TFLC02::offset_correction() {
+  transmit(Command::OFFSET_CORRECTION);
 
   std::cout << "Error code: " << +response.at(4) << "; "
             << "Offset_short1: " << response.at(5) << "; "
@@ -44,8 +48,8 @@ void TFLC02::offset_correction() {
             << std::endl;
 }
 
-void TFLC02::get_factory_defaults() {
-  transmit(CMD_FACTORY_SETTINGS);
+void TFLC02::TFLC02::get_factory_defaults() {
+  transmit(Command::FACTORY_SETTINGS);
 
   std::cout << "Offset_short1: " << response.at(4) << "; "
             << "Offset_short2: " << response.at(5) << "; "
@@ -56,8 +60,8 @@ void TFLC02::get_factory_defaults() {
             << std::endl;
 }
 
-void TFLC02::get_product_information() {
-  transmit(CMD_PRODUCT_DETAILS);
+void TFLC02::TFLC02::get_product_information() {
+  transmit(Command::PRODUCT_DETAILS);
 
   std::cout << "Sensor_ic: ";
   switch (response.at(4)) {
@@ -87,9 +91,9 @@ void TFLC02::get_product_information() {
 }
 
 
-void TFLC02::transmit(command_e command) {
+void TFLC02::TFLC02::transmit(Command command) {
   std::vector<uint8_t> tx_data {PACKET_HEADER_1, PACKET_HEADER_2};
-  tx_data.push_back(command);
+  tx_data.push_back(static_cast<uint8_t>(command));
   tx_data.push_back(0);
   tx_data.push_back(PACKET_END);
 
@@ -106,7 +110,7 @@ void TFLC02::transmit(command_e command) {
   receive();
 }
 
-void TFLC02::receive() {
+void TFLC02::TFLC02::receive() {
   uint8_t rx_data[32] {0};
   uint8_t rx_length = 4;
 
