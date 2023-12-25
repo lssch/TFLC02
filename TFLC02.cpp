@@ -6,8 +6,9 @@
 #include <iostream>
 #include "TFLC02.h"
 
-TFLC02::TFLC02::TFLC02(UART_HandleTypeDef *huart_):
-  huart(huart_) {
+TFLC02::TFLC02::TFLC02(UART_HandleTypeDef &huart, State::TofSpot &state)
+  : _huart(huart),
+    _state(state) {
 }
 
 void TFLC02::TFLC02::init() {
@@ -16,55 +17,57 @@ void TFLC02::TFLC02::init() {
 
 void TFLC02::TFLC02::reset() {
   transmit(Command::RESET);
-
-  HAL_Delay(100);
 }
 
-void TFLC02::TFLC02::get_distance(Sensor::TofSpot* sensor) {
-  transmit(Command::MEASURING_DISTANCE);
+void TFLC02::TFLC02::get_distance(Sensor::TofSpot &sensor) {
+  if (transmit_receive(Command::MEASURING_DISTANCE) != EXIT_SUCCESS)
+    return;
 
-  sensor->distance = (response.at(4) << 8 | response.at(5));
-
-  //std::cout << "Distance: " << +(response.at(4) << 8 | response.at(5)) << " mm (" << +response.at(6) <<")" << std::endl;
+  sensor.distance = (_response.body.at(0) << 8 | _response.body.at(1));
+  _state = static_cast<State::TofSpot>(_response.body.at(2));
 }
 
 void TFLC02::TFLC02::crosstalk_correction() {
-  transmit(Command::CROSSTALK_CORRECTION);
+  if (transmit_receive(Command::CROSSTALK_CORRECTION) != EXIT_SUCCESS)
+    return;
 
-  std::cout << "Error code: " << +response.at(4) << "; "
-            << "xtalkLsb: " << response.at(5) << "; "
-            << "xtalkMsb: " << response.at(6)
+  std::cout << "Error code: " << +_response.body.at(0) << "; "
+            << "xtalkLsb: " << _response.body.at(1) << "; "
+            << "xtalkMsb: " << _response.body.at(2)
             << std::endl;
 }
 
 void TFLC02::TFLC02::offset_correction() {
-  transmit(Command::OFFSET_CORRECTION);
+  if (transmit_receive(Command::OFFSET_CORRECTION) != EXIT_SUCCESS)
+    return;
 
-  std::cout << "Error code: " << +response.at(4) << "; "
-            << "Offset_short1: " << response.at(5) << "; "
-            << "Offset_short2: " << response.at(6) << "; "
-            << "Offset_long1: " << response.at(7) << "; "
-            << "Offset_long2: " << response.at(8) << "; "
+  std::cout << "Error code: " << +_response.body.at(0) << "; "
+            << "Offset_short1: " << _response.body.at(1) << "; "
+            << "Offset_short2: " << _response.body.at(2) << "; "
+            << "Offset_long1: " << _response.body.at(3) << "; "
+            << "Offset_long2: " << _response.body.at(4) << "; "
             << std::endl;
 }
 
 void TFLC02::TFLC02::get_factory_defaults() {
-  transmit(Command::FACTORY_SETTINGS);
+  if (transmit_receive(Command::FACTORY_SETTINGS) != EXIT_SUCCESS)
+    return;
 
-  std::cout << "Offset_short1: " << response.at(4) << "; "
-            << "Offset_short2: " << response.at(5) << "; "
-            << "Offset_long1: " << response.at(6) << "; "
-            << "Offset_long2: " << response.at(7) << "; "
-            << "xtalkLsb: " << response.at(8) << "; "
-            << "xtalkMsb: " << response.at(9)
+  std::cout << "Offset_short1: " << _response.body.at(0) << "; "
+            << "Offset_short2: " << _response.body.at(1) << "; "
+            << "Offset_long1: " << _response.body.at(2) << "; "
+            << "Offset_long2: " << _response.body.at(3) << "; "
+            << "xtalkLsb: " << _response.body.at(4) << "; "
+            << "xtalkMsb: " << _response.body.at(5)
             << std::endl;
 }
 
 void TFLC02::TFLC02::get_product_information() {
-  transmit(Command::PRODUCT_DETAILS);
+  if (transmit_receive(Command::PRODUCT_DETAILS) != EXIT_SUCCESS)
+    return;
 
   std::cout << "Sensor_ic: ";
-  switch (response.at(4)) {
+  switch (_response.body.at(0)) {
     case 0x02:
       std::cout << "gp2ap02vt";
       break;
@@ -75,7 +78,7 @@ void TFLC02::TFLC02::get_product_information() {
       break;
   }
   std::cout << "; Port: ";
-  switch (response.at(5)) {
+  switch (_response.body.at(1)) {
     case 0x41:
       std::cout << "UART/I2C";
       break;
@@ -87,55 +90,57 @@ void TFLC02::TFLC02::get_product_information() {
     default:
       break;
   }
-  std::cout << "; Firmware: " << +response.at(6) << std::endl;
+  std::cout << "; Firmware: " << +_response.body.at(2) << std::endl;
 }
 
 
-void TFLC02::TFLC02::transmit(Command command) {
-  std::vector<uint8_t> tx_data {PACKET_HEADER_1, PACKET_HEADER_2};
-  tx_data.push_back(static_cast<uint8_t>(command));
-  tx_data.push_back(0);
-  tx_data.push_back(PACKET_END);
+void inline TFLC02::TFLC02::transmit(Command command) {
+  std::vector<uint8_t> tx_data {
+    TFLC02_PACKET_HEADER_1,
+    TFLC02_PACKET_HEADER_2,
+    static_cast<uint8_t>(command),
+    0,
+    TFLC02_PACKET_END};
 
-/*
+  /*
   std::cout << "tx_data = ";
   for (auto byte: tx_data) {
     std::cout << std::hex << +byte << " ";
   }
   std::cout << std::endl;
-*/
+  */
 
-  HAL_UART_Transmit(huart, tx_data.data(), tx_data.size(), HAL_MAX_DELAY);
-
-  receive();
+  HAL_UART_Transmit(&_huart, tx_data.data(), tx_data.size(), TFLC02_COMMS_TIMEOUT);
 }
 
-void TFLC02::TFLC02::receive() {
-  uint8_t rx_data[32] {0};
-  uint8_t rx_length = 4;
+uint8_t inline TFLC02::TFLC02::receive() {
+  // Receive the header part of the package
+  HAL_UART_Receive(&_huart, _response.header.data(), _response.header.size(), TFLC02_COMMS_TIMEOUT);
 
-  response.clear();
+  // Receive the body part of the package
+  std::vector<uint8_t> body(_response.header.at(3));
+  HAL_UART_Receive(&_huart, body.data(), body.size(), TFLC02_COMMS_TIMEOUT);
+  _response.body = body;
 
-  HAL_UART_Receive(huart, rx_data, rx_length, HAL_MAX_DELAY);
+  // Receive the tail part of the package
+  HAL_UART_Receive(&_huart, &_response.tail, 1, TFLC02_COMMS_TIMEOUT);
 
-  for (int i = 0; i < rx_length; ++i) {
-    response.push_back(rx_data[i]);
-  }
+  /*
+  std::cout << "rx_data: ";
+  for (auto byte: _response.header)
+    std::cout << std::hex << +byte << ", ";
+  for (auto byte: _response.body)
+    std::cout << std::hex << +byte << ", ";
+  std::cout << std::hex << +_response.tail << std::endl;
+  */
 
-  rx_length = rx_data[3] + 1;
+  if (_response.header.at(0) != TFLC02_PACKET_HEADER_1 || _response.header.at(1) != TFLC02_PACKET_HEADER_2 || _response.tail != TFLC02_PACKET_END)
+    return EXIT_FAILURE;
 
-  HAL_UART_Receive(huart, &rx_data[4], rx_length, HAL_MAX_DELAY);
+  return EXIT_SUCCESS;
+}
 
-  for (int i = 0; i < rx_length; ++i) {
-    response.push_back(rx_data[i + 4]);
-  }
-
-/*
-  std::cout << "rx_data = ";
-  for (auto byte: response) {
-    std::cout << std::hex << +byte << " ";
-  }
-  std::cout << std::endl;
-*/
-
+uint8_t inline TFLC02::TFLC02::transmit_receive(Command command) {
+  transmit(command);
+  return receive();
 }

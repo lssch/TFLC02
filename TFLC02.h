@@ -7,14 +7,17 @@
 
 #include "stm32f4xx_hal.h"
 #include <vector>
-#include "types/sensor/sensor.h"
+#include "types/sensor.h"
+#include "types/request.h"
+#include "types/state.h"
 
-#define PACKET_HEADER_1 0x55
-#define PACKET_HEADER_2 0xAA
-#define PACKET_END 0xFA
+#define TFLC02_PACKET_HEADER_1 0x55
+#define TFLC02_PACKET_HEADER_2 0xAA
+#define TFLC02_PACKET_END 0xFA
+#define TFLC02_COMMS_TIMEOUT 100
 
 namespace TFLC02 {
-  enum class Command : uint16_t {
+  enum class Command : uint8_t {
     MEASURING_DISTANCE = 0x81,
     CROSSTALK_CORRECTION = 0x82,
     OFFSET_CORRECTION = 0x83,
@@ -22,7 +25,8 @@ namespace TFLC02 {
     FACTORY_SETTINGS = 0x85,
     PRODUCT_DETAILS = 0x86
   };
-  enum class ErrorCode : uint16_t {
+
+  enum class ErrorCode : uint8_t {
     VALID_DATA = 0x00,
     VCSEL_SHORT = 0x01,
     LOW_SIGNAL = 0x02,
@@ -33,23 +37,32 @@ namespace TFLC02 {
     CROSSTALK_ERROR = 0x80,
   };
 
-  class TFLC02{
+  class Response {
   public:
-    TFLC02(UART_HandleTypeDef *huart_);
+    std::array<uint8_t, 4> header;
+    std::vector<uint8_t> body;
+    uint8_t tail;
+  };
+
+  class TFLC02 {
+  public:
+    TFLC02(UART_HandleTypeDef &huart, State::TofSpot &state);
 
     void init();
     void reset();
-    void get_distance(Sensor::TofSpot* sensor);
+    void get_distance(Sensor::TofSpot &sensor);
     void crosstalk_correction();
     void offset_correction();
     void get_factory_defaults();
     void get_product_information();
   private:
-    UART_HandleTypeDef *huart;
-    std::vector<uint8_t> response;
+    UART_HandleTypeDef &_huart;
+    State::TofSpot &_state;
+    Response _response;
 
-    void transmit(Command command);
-    void receive();
+    void inline transmit(Command command);
+    uint8_t inline receive();
+    uint8_t inline transmit_receive(Command command);
   };
 }
 
