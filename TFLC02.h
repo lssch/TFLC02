@@ -46,11 +46,22 @@ namespace TFLC02 {
 
   class TFLC02 {
   public:
+    /// @brief ToF Object which represents the TFLC02 chip
+    /// @param[in,out] huart Uart interface to communicate with the connected camera.
+    /// @param[out] state State of the sensor
     TFLC02(UART_HandleTypeDef &huart, State::TofSpot &state);
 
+    /// @brief Initializer to setup the sensor.
+    /// @todo This function can be eliminated if the Constructor is called inside the main function and after the initialisation of the huart
     void init();
+
+    /// @brief Hardware reset
     void reset();
+
+    /// @brief Get the current distance from the sensor.
+    /// @param[in] sensor Container to store the values to.
     void get_distance(Sensor::TofSpot &sensor);
+
     void crosstalk_correction();
     void offset_correction();
     void get_factory_defaults();
